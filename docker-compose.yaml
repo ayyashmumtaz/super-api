@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  auth-service:
+    build:
+      context: ./auth-service  # Path ke folder auth-service
+    volumes:
+      - ./.env:/app/.env
+      - ./auth-service:/app  # Mount folder lokal untuk hot-reloading dengan Air
+    ports:
+      - "8080:8080"  # Port untuk auth-service
+    depends_on:
+      - db  # auth-service bergantung pada database
+    networks:
+      - app-network
+
+  user-service:
+    build:
+      context: ./user-service  # Path ke folder user-service
+    ports:
+      - "8081:8081"  # Port untuk user-service
+    depends_on:
+      - db  # user-service bergantung pada database
+    volumes:
+      - ./.env:/app/.env
+      - ./user-service:/app  # Mount folder lokal untuk hot-reloading dengan Air
+    networks:
+      - app-network
+
+  db:
+    image: postgres:13
+    container_name: auth-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: authdb
+    ports:
+      - "5432:5432"  # Port untuk database
+    networks:
+      - app-network
+    volumes:
+      - authdb-data:/var/lib/postgresql/data
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  authdb-data:
