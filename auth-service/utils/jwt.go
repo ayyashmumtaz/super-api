@@ -11,17 +11,13 @@ var jwtKey = []byte(os.Getenv("JWT_SECRET")) // Ambil JWT Secret dari environmen
 
 // GenerateJWT menghasilkan token JWT untuk user
 func GenerateJWT(username string) (string, error) {
-	// Set klaim token
-	claims := jwt.MapClaims{
-		"username": username,
-		"exp":      time.Now().Add(time.Hour * 24).Unix(), // expired 1 hari
+	claims := jwt.StandardClaims{
+		ExpiresAt: time.Now().Add(time.Hour).Unix(), // 1 jam
+		Subject:   username,
 	}
 
-	// Buat token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	// Tanda tangani token
-	return token.SignedString(jwtKey)
+	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 }
 
 // Validasi token JWT
