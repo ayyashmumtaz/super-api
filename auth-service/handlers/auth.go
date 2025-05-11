@@ -3,11 +3,16 @@ package handlers
 import (
 	"auth-service/database"
 	"auth-service/models"
+	redisdb "auth-service/redis"
 	"auth-service/utils"
 	"database/sql"
 	"net/http"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func Register(c *gin.Context) {
@@ -75,4 +80,43 @@ func Login(c *gin.Context) {
 		"token":   token,
 	})
 
+}
+
+func Logout(c *gin.Context) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No token provided"})
+		return
+	}
+
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// Parse token
+	token, err := jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(os.Getenv("JWT_SECRET")), nil
+	})
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+		return
+	}
+
+	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+		return
+	}
+
+	// Hitung waktu kadaluarsa token
+	expiration := time.Until(claims.ExpiresAt.Time)
+	if expiration <= 0 {
+		expiration = time.Minute * 5 // fallback kalau exp di masa lalu
+	}
+
+	// Simpan ke Redis sebagai blacklist
+	if err := redisdb.BlacklistToken(tokenStr, expiration); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to blacklist token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Logout successful"})
 }
