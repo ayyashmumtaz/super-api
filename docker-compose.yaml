@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.9'
 
 services:
   auth-service:
@@ -11,6 +11,7 @@ services:
       - "8080:8080"  # Port untuk auth-service
     depends_on:
       - db  # auth-service bergantung pada database
+      - redis  # auth-service juga bergantung pada Redis
     networks:
       - app-network
 
@@ -21,6 +22,7 @@ services:
       - "8081:8081"  # Port untuk user-service
     depends_on:
       - db  # user-service bergantung pada database
+      - redis  # user-service juga bergantung pada Redis
     volumes:
       - ./.env:/app/.env
       - ./user-service:/app  # Mount folder lokal untuk hot-reloading dengan Air
@@ -29,7 +31,7 @@ services:
 
   db:
     image: postgres:13
-    container_name: auth-db
+    container_name: superapp-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -41,9 +43,20 @@ services:
     volumes:
       - authdb-data:/var/lib/postgresql/data
 
+  redis:
+    image: "redis:latest"  # Menggunakan Redis versi terbaru
+    container_name: superapp-redis
+    ports:
+      - "6379:6379"  # Port untuk Redis
+    networks:
+      - app-network
+    volumes:
+      - redis-data:/data  # Menyimpan data Redis agar persist
+
 networks:
   app-network:
     driver: bridge
 
 volumes:
   authdb-data:
+  redis-data:
