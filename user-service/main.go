@@ -65,7 +65,7 @@ func main() {
 	r.GET("/users/:id", func(c *gin.Context) {
 		id := c.Param("id")
 		var u User
-		err := db.QueryRow("SELECT id, name, email FROM users WHERE id = $1", id).Scan(&u.ID, &u.Name, &u.Email)
+		err := db.QueryRow("SELECT id,username, name, email FROM users WHERE id = $1", id).Scan(&u.ID, &u.Username, &u.Name, &u.Email)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
