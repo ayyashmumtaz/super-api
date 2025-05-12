@@ -1,13 +1,11 @@
 package handlers_test
 
 import (
-	"auth-service/database"
 	"auth-service/handlers"
 	"auth-service/models"
 	"auth-service/utils"
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,54 +16,79 @@ import (
 )
 
 func setupRouter() *gin.Engine {
-	gin.SetMode(gin.TestMode)
 	r := gin.Default()
+	r.POST("/register", handlers.Register)
+	r.POST("/login", handlers.Login)
+	r.POST("/logout", handlers.Logout)
 	return r
 }
 
 func TestRegisterHandler(t *testing.T) {
-	// Mock database connection
-	db, mock, err := sqlmock.New()
-	assert.NoError(t, err)
+	gin.SetMode(gin.TestMode)
+	db, mock, _ := sqlmock.New()
+	handlers.OverrideDB(db) // You should create a function to override the DB in handlers
 	defer db.Close()
 
-	// Set the DB in handlers package to the mocked DB
-	database.DB = db
-
-	// Prepare hashed password
-	password := "test1234"
-	// hashed password is not used, so we remove its declaration
-	_, _ = utils.HashPassword(password)
-
-	// Mock the behavior of the database for the query
-	mock.ExpectQuery("INSERT INTO users").
-		WithArgs("Test", "testuser", "test@example.com", sqlmock.AnyArg()).
+	mock.ExpectQuery(`INSERT INTO users`).
+		WithArgs("Test User", "testuser", "test@example.com", sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 
-	// Set up the router
-	r := setupRouter()
-	r.POST("/register", handlers.Register)
-
-	// Create a user object for the request
 	user := models.User{
-		Name:     "Test",
+		Name:     "Test User",
 		Username: "testuser",
 		Email:    "test@example.com",
-		Password: password,
+		Password: "password123",
 	}
 	body, _ := json.Marshal(user)
-	fmt.Println(string(body))
-
-	// Create a new HTTP POST request
+	r := setupRouter()
 	req, _ := http.NewRequest("POST", "/register", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-
-	// Record the response
 	resp := httptest.NewRecorder()
-
-	// Send the request
 	r.ServeHTTP(resp, req)
 
-	// Check if the response is as expected
 	assert.Equal(t, http.StatusCreated, resp.Code)
+}
+
+func TestLoginHandler_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db, mock, _ := sqlmock.New()
+	handlers.OverrideDB(db)
+	defer db.Close()
+
+	hashed, _ := utils.HashPassword("password123")
+	mock.ExpectQuery(`SELECT id, username, email, password FROM users WHERE username = \$1`).
+		WithArgs("testuser").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "username", "email", "password"}).
+			AddRow(1, "testuser", "test@example.com", hashed))
+
+	body := `{"username": "testuser", "password": "password123"}`
+	r := setupRouter()
+	req, _ := http.NewRequest("POST", "/login", bytes.NewBuffer([]byte(body)))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	r.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
+func TestLoginHandler_InvalidPassword(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db, mock, _ := sqlmock.New()
+	handlers.OverrideDB(db)
+	defer db.Close()
+
+	hashed, _ := utils.HashPassword("correctpassword")
+	mock.ExpectQuery(`SELECT id, username, email, password FROM users WHERE username = \$1`).
+		WithArgs("testuser").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "username", "email", "password"}).
+			AddRow(1, "testuser", "test@example.com", hashed))
+
+	body := `{"username": "testuser", "password": "wrongpassword"}`
+	r := setupRouter()
+	req, _ := http.NewRequest("POST", "/login", bytes.NewBuffer([]byte(body)))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	r.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusUnauthorized, resp.Code)
 }
