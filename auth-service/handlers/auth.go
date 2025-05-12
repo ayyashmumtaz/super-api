@@ -15,6 +15,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+var DB *sql.DB
+
 func Register(c *gin.Context) {
 	var newUser models.User
 	if err := c.ShouldBindJSON(&newUser); err != nil {

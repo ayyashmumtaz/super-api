@@ -31,3 +31,7 @@ func InitDB() {
 		log.Fatal("Failed to ping DB:", err)
 	}
 }
+
+func SetMockDB(mock *sql.DB) {
+	DB = mock
+}
